@@ -120,9 +120,12 @@ Create a new Parallel::Subs object.
 
 By default it will use the number of cores you have as a maximum limit of parallelized job,
 but you can control this value with two options :
+
 \- max\_process : set the maximum process to this value
+
 \- max\_process\_per\_cpu : set the maximum process per cpu, this value
 will be multiplied by the number of cpu ( core ) avaiable on your server
+
 \- max\_memory : in MB per job. Will use the minimum between #cpu and total memory available / max\_memory
 
     my $p = Parallel::Subs->new()
