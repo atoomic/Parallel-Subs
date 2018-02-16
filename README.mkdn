@@ -1,0 +1,163 @@
+# NAME
+
+Parallel::Subs - Simple way to run subs in parallel and process their return value in perl
+
+# VERSION
+
+version 0.001
+
+# DESCRIPTION
+
+Parallel::Subs is a simple object interface used to launch test in parallel.
+It uses Parallel::ForkManager to launch subs in parallel and get the results.
+
+# NAME
+Parallel::Subs - simple object interface to launch subs in parallel
+and process their return values.
+
+# Usage
+
+You could also use the result returned by the function run in custom child process
+from the main process by providing a second optional sub to process the results
+
+## The basics
+
+    use Parallel::Subs;
+
+    my $p = Parallel::Subs->new();
+    #    or Parallel::Subs->new( max_process => N )
+    #    or Parallel::Subs->new( max_process_per_cpu => P )
+    #    or Parallel::Subs->new( max_memory => M );
+
+    # add a first sub which will be launched by its own kid
+    $p->add(  
+        sub { # will be launched in parallel
+            # any code that take time to execute can go there
+            print "Hello from kid $$\n";
+        }
+    );
+    # add a second sub
+    $p->add(
+        sub { print "Hello from kid $$\n" }
+     )
+    $p->add( \&do_something );
+
+    # Trigger all the subs to run in parallel using a limited number of process
+    $p->wait_for_all();
+
+    print qq[This is done.\n];
+
+## Chaining the subs
+
+You can also chain the 'add', or even the 'wait\_for\_all',
+which can make your code easier to read.
+
+    use Parallel::Subs;
+
+    my $p = Parallel::Subs->new()
+     ->add( sub{ print "Hello from kid $$\n"; sleep 5; } )
+     ->add( sub{ print "Hello from kid $$\n"; sleep 4; } )
+     ->add( sub{ print "Hello from kid $$\n"; sleep 3; } )
+     ->add( sub{ print "Hello from kid $$\n"; sleep 2; } )
+     ->add( sub{ print "Hello from kid $$\n"; sleep 1; } )
+     ->add( sub{ print "Hello from kid $$\n" } )
+     ->wait_for_all();
+    
+    print qq[This is done.\n];
+
+## Run subs in parallel and use their return values
+
+    use Parallel::Subs;
+
+    my $sum;
+
+    sub work_to_do {
+        my ( $a, $b ) = @_;
+        return sub {
+            note "Running in parallel from process $$";
+            # need some time to execute...
+            # return 42;
+            # return { value => 42 };
+            # return [ 1..9 ];
+            return $a * $b;
+            }
+    }
+
+    sub read_result {
+        my $result = shift;
+
+        $sum += $result;
+    }
+
+    my $p = Parallel::Subs->new();
+    $p->add(
+        sub {
+            my $time = int( rand(2) );
+            sleep($time);
+            return { number => 1, time => $time };
+        },
+        sub {
+            # run from the main process once the kid process has finished its work
+            #   to access return values from previous sub
+            my $result = shift;
+            $sum += $result->{number};
+
+            return;
+        }
+        )->add( work_to_do( 1, 2 ), \&read_result )
+        ->add( work_to_do( 3, 4 ),  \&read_result )
+        ->add( work_to_do( 5, 6 ),  \&read_result )
+        ->add( work_to_do( 7, 8 ),  \&read_result )
+        ->add( work_to_do( 9, 10 ), \&read_result );
+
+    $p->wait_for_all();
+
+# METHODS
+
+## new
+
+Create a new Parallel::Subs object.
+
+By default it will use the number of cores you have as a maximum limit of parallelized job,
+but you can control this value with two options :
+\- max\_process : set the maximum process to this value
+\- max\_process\_per\_cpu : set the maximum process per cpu, this value
+will be multiplied by the number of cpu ( core ) avaiable on your server
+\- max\_memory : in MB per job. Will use the minimum between #cpu and total memory available / max\_memory
+
+    my $p = Parallel::Subs->new()
+        or Parallel::Subs->new( max_process => N )
+        or Parallel::Subs->new( max_process_per_cpu => P )
+        or Parallel::Subs->new( max_memory => M );
+
+## $p->add($code, \[$callback\])
+
+You can add some sub to be run in parallel.
+
+    $p->add( sub { 1 } );
+    $p->add( sub { return { 1..6 } }, sub { my $result = shift; ... } );
+
+## $p->run
+
+will run and wait for all jobs added
+you do not need to use this method except if you prefer to add jobs yourself and manipulate the results
+
+## $p->wait\_for\_all
+
+    no process will be executed until you call this function
+    which will then trigger parallel jobs and wait for all of them to finish    
+
+## $p->results
+
+    get an array of results, in the same order of jobs
+
+# AUTHOR
+
+Nicolas R <atoomic@cpan.org>
+
+# COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2018 by Nicolas R.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
