@@ -4,7 +4,7 @@ Parallel::Subs - Simple way to run subs in parallel and process their return val
 
 # VERSION
 
-version 0.001
+version 0.002
 
 # DESCRIPTION
 
@@ -62,6 +62,7 @@ which can make your code easier to read.
      ->add( sub{ print "Hello from kid $$\n"; sleep 1; } )
      ->add( sub{ print "Hello from kid $$\n" } )
      ->wait_for_all();
+     # or ->wait_for_all_optimized(); # beta - group jobs and run one single fork per/cpu
     
     print qq[This is done.\n];
 
@@ -139,6 +140,17 @@ You can add some sub to be run in parallel.
 
     $p->add( sub { 1 } );
     $p->add( sub { return { 1..6 } }, sub { my $result = shift; ... } );
+
+## $p->total\_jobs
+
+    return the total number of jobs
+
+## $p->wait\_for\_all\_optimized
+
+    similar to wait_for_all but the goal is to reduce the number of fork
+    by grouping tasks together to be run by the same process
+
+    For now this does not support callback. This is still in beta testing.
 
 ## $p->run
 
