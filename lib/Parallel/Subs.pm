@@ -8,6 +8,8 @@ use Sys::Info;
 
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
 
+our $VERSION = 1.00;
+
 =head1 NAME
 Parallel::Subs - simple object interface to launch subs in parallel
 and process their return values.
