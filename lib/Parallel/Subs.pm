@@ -3,6 +3,7 @@ package Parallel::Subs;
 use strict;
 use warnings;
 
+use Carp qw(croak);
 use Parallel::ForkManager;
 use Sys::Info;
 
@@ -186,19 +187,16 @@ sub _pfork {
             require Sys::Statistics::Linux::MemStats;
             $free_mem = Sys::Statistics::Linux::MemStats->new->get->{realfree};
         };
-        my $max_mem = $opts{max_memory} * 1024;  # 1024 **2 = 1 GO => expr in Kb
+        my $max_mem = $opts{max_memory} * 1024;  # express in Kb
         my $cpu_for_mem;
         if ($@) {
-
-#warn "Cannot guess amount of available free memory need Sys::Statistics::Linux::MemStats\n";
             $cpu_for_mem = 2;
         }
         else {
             $cpu_for_mem = int( $free_mem / $max_mem );
         }
 
-        # min
-        $cpu = ( $cpu_for_mem < $cpu ) ? $cpu_for_mem : $cpu;
+        $cpu = $cpu_for_mem if !defined $cpu || $cpu_for_mem < $cpu;
     }
     $cpu ||= 1;
 
@@ -222,14 +220,15 @@ You can add some sub to be run in parallel.
 =cut
 
 sub add {
-    my ( $self, $code, $test ) = @_;
+    my ( $self, $code, $callback ) = @_;
 
-    return unless $code && ref $code eq 'CODE';
+    croak "add() requires a CODE reference as first argument"
+      unless $code && ref $code eq 'CODE';
     push(
         @{ $self->{jobs} },
         { name => ( scalar( @{ $self->{jobs} } ) + 1 ), code => $code }
     );
-    push( @{ $self->{callbacks} }, $test );
+    push( @{ $self->{callbacks} }, $callback );
 
     return $self;
 }
@@ -278,11 +277,7 @@ sub wait_for_all_optimized {
         my ( $from, $to ) = @_;
 
         return sub {
-
-            #print "subprocess from $from to $to\n";
             for ( my $i = $from ; $i <= $to ; ++$i ) {
-
-                #print "running job $i\n";
                 $original_jobs[$i]->{code}->();
             }
             return;
@@ -294,7 +289,6 @@ sub wait_for_all_optimized {
         $to = $from + $jobs_per_cpu - 1;
         $to = scalar(@original_jobs) - 1 if $to >= scalar(@original_jobs);
 
-        #print "FROM $from - TO $to\n";
         my $sub = $generate_sub->( $from, $to );
 
         push @new_jobs, { name => $id, code => $sub };
@@ -343,36 +337,17 @@ sub run {
 sub wait_for_all {
     my ($self) = @_;
 
-    # run callbacks
-    die "Cannot run callbacks" unless $self->run();
-
     return $self unless $self->total_jobs;
-    my $c = 0;
+
+    $self->run();
 
     my $results = $self->results();
 
+    my $c = 0;
     foreach my $callback ( @{ $self->{callbacks} } ) {
-        next unless $callback;
-        die "cannot find result for #${c}" unless exists $results->[$c];
         my $res = $results->[ $c++ ];
-
-        if ( ref $callback eq 'HASH' ) {
-
-            # internal mechanism
-            return
-              unless defined $callback->{test} && defined $callback->{args};
-
-            my @args = ( $res, @{ $callback->{args} } );
-            my $t    = $callback->{test};
-            my $str  = join( ', ', map { "\$args[$_]" } ( 0 .. $#args ) );
-            eval "$t(" . $str . ")";
-        }
-        elsif ( ref $callback eq 'CODE' ) {
-
-            # execute user function
-            $callback->($res);
-        }
-
+        next unless $callback && ref $callback eq 'CODE';
+        $callback->($res);
     }
 
     return $self;
