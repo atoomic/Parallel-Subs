@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  perl-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      perl-versions: ${{ steps.perl-versions.outputs.perl-versions }}
+    steps:
+      - uses: perl-actions/perl-versions@v2
+        id: perl-versions
+        with:
+          min-perl-version: "5.14"
+
+  test:
+    needs: perl-versions
+    runs-on: ubuntu-latest
+    name: "perl ${{ matrix.perl-version }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        perl-version: ${{ fromJson(needs.perl-versions.outputs.perl-versions) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up perl ${{ matrix.perl-version }}
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl-version }}
+
+      - name: Install Dist::Zilla and author deps
+        run: |
+          cpanm -n Dist::Zilla
+          dzil authordeps --missing | cpanm -n
+          dzil listdeps --missing | cpanm -n
+
+      - name: Build
+        run: dzil build --in build
+
+      - name: Test
+        run: |
+          cd build
+          prove -lr t/
+        env:
+          AUTOMATED_TESTING: 1
+          HARNESS_TIMER: 1
