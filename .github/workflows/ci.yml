@@ -48,7 +48,7 @@ jobs:
           cpanfile: ".github/cpanfile.ci"
       - name: Build and Test
         run: |
-          if command -v dzil &> /dev/null; then
+          if [ -x "$(command -v dzil)" ]; then
             dzil build --in build
             cd build
           fi
