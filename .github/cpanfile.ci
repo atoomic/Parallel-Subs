@@ -1,0 +1,46 @@
+requires "Dist::Zilla" => 0;
+
+# dzil authordeps
+requires "Dist::Zilla::Plugin::GatherDir"              => 0;
+requires "Dist::Zilla::Plugin::Git::NextVersion"        => 0;
+requires "Dist::Zilla::Plugin::Git::Push"               => 0;
+requires "Dist::Zilla::Plugin::MetaConfig"              => 0;
+requires "Dist::Zilla::Plugin::MetaJSON"                => 0;
+requires "Dist::Zilla::Plugin::MetaProvides::Package"   => 0;
+requires "Dist::Zilla::Plugin::MetaResources"           => 0;
+requires "Dist::Zilla::Plugin::MetaTests"               => 0;
+requires "Dist::Zilla::Plugin::MinimumPerlFast"         => 0;
+requires "Dist::Zilla::Plugin::NextRelease"             => 0;
+requires "Dist::Zilla::Plugin::PkgVersion"              => 0;
+requires "Dist::Zilla::Plugin::PodSyntaxTests"          => 0;
+requires "Dist::Zilla::Plugin::PodWeaver"               => 0;
+requires "Dist::Zilla::Plugin::Prereqs::FromCPANfile"   => 0;
+requires "Dist::Zilla::Plugin::PruneFiles"              => 0;
+requires "Dist::Zilla::Plugin::ReadmeAnyFromPod"        => 0;
+requires "Dist::Zilla::Plugin::RunExtraTests"           => 0;
+requires "Dist::Zilla::Plugin::Test::Compile"           => 0;
+requires "Dist::Zilla::Plugin::Test::MinimumVersion"    => 0;
+requires "Dist::Zilla::Plugin::Test::ReportPrereqs"     => 0;
+requires "Dist::Zilla::Plugin::TestRelease"             => 0;
+requires "Dist::Zilla::PluginBundle::Basic"             => 0;
+requires "Dist::Zilla::PluginBundle::Filter"            => 0;
+requires "Dist::Zilla::PluginBundle::Git"               => 0;
+requires "Software::License::Perl_5"                    => 0;
+
+# runtime deps
+requires "Parallel::ForkManager"              => 0;
+requires "Sys::Info"                          => 0;
+
+# test deps
+requires "File::Slurp"               => 0;
+requires "FindBin"                   => 0;
+requires "Capture::Tiny"             => 0;
+requires "File::Temp"                => 0;
+requires "List::MoreUtils"           => 0;
+requires "Test2::Bundle::Extended"   => 0;
+requires "Test2::Plugin::NoWarnings" => 0;
+requires "Test2::Suite"              => 0;
+requires "Test2::Tools::Explain"     => 0;
+requires "Test::Builder"             => 0;
+requires "Test::CPAN::Meta"         => 0;
+requires "Test::More"                => 0;
