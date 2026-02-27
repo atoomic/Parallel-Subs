@@ -1,10 +1,12 @@
-name: ci
+name: CI
 
 on:
   push:
-    branches: ["*"]
+    branches:
+      - '*'
+    tags-ignore:
+      - '*'
   pull_request:
-    branches: [master, main]
 
 jobs:
   perl-versions:
@@ -12,42 +14,41 @@ jobs:
     outputs:
       perl-versions: ${{ steps.perl-versions.outputs.perl-versions }}
     steps:
-      - uses: perl-actions/perl-versions@v2
-        id: perl-versions
+      - id: perl-versions
+        uses: perl-actions/perl-versions@v2
         with:
-          min-perl-version: "5.14"
+          since-perl: 5.14
+          with-devel: false
 
-  test:
+  linux:
     needs: perl-versions
     runs-on: ubuntu-latest
-    name: "perl ${{ matrix.perl-version }}"
+    name: "Linux / Perl ${{ matrix.perl-version }}"
+
+    env:
+      PERL_USE_UNSAFE_INC: 0
+      AUTOMATED_TESTING: 1
 
     strategy:
       fail-fast: false
       matrix:
         perl-version: ${{ fromJson(needs.perl-versions.outputs.perl-versions) }}
 
+    container:
+      image: perldocker/perl-tester:${{ matrix.perl-version }}
+
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up perl ${{ matrix.perl-version }}
-        uses: shogo82148/actions-setup-perl@v1
-        with:
-          perl-version: ${{ matrix.perl-version }}
-
-      - name: Install Dist::Zilla and author deps
+      - uses: actions/checkout@v6
+      - name: perl -V
+        run: perl -V
+      - name: Install Dist::Zilla and dependencies
         run: |
-          cpanm -n Dist::Zilla
-          dzil authordeps --missing | cpanm -n
-          dzil listdeps --missing | cpanm -n
-
+          cpm install -g --show-build-log-on-failure Dist::Zilla
+          cpm install -g --show-build-log-on-failure $(dzil authordeps --missing | tr '\n' ' ')
+          cpm install -g --show-build-log-on-failure $(dzil listdeps --missing | tr '\n' ' ')
       - name: Build
         run: dzil build --in build
-
-      - name: Test
+      - name: Run Tests
         run: |
           cd build
           prove -lr t/
-        env:
-          AUTOMATED_TESTING: 1
-          HARNESS_TIMER: 1
