@@ -7,6 +7,7 @@ on:
     tags-ignore:
       - '*'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   perl-versions:
@@ -39,13 +40,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      - name: perl -V
-        run: perl -V
-      - name: Install Dist::Zilla and dependencies
-        run: |
-          cpm install -g --show-build-log-on-failure Dist::Zilla
-          cpm install -g --show-build-log-on-failure $(dzil authordeps --missing | tr '\n' ' ')
-          cpm install -g --show-build-log-on-failure $(dzil listdeps --missing | tr '\n' ' ')
+      - run: perl -V
+      - name: Install dependencies
+        uses: perl-actions/install-with-cpm@v1
+        with:
+          sudo: false
+          cpanfile: ".github/cpanfile.ci"
       - name: Build
         run: dzil build --in build
       - name: Run Tests
