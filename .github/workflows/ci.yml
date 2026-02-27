@@ -46,9 +46,10 @@ jobs:
         with:
           sudo: false
           cpanfile: ".github/cpanfile.ci"
-      - name: Build
-        run: dzil build --in build
-      - name: Run Tests
+      - name: Build and Test
         run: |
-          cd build
+          if command -v dzil &> /dev/null; then
+            dzil build --in build
+            cd build
+          fi
           prove -lr t/
