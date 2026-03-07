@@ -190,6 +190,8 @@ sub _pfork {
         my $max_mem = $opts{max_memory} * 1024;  # express in Kb
         my $cpu_for_mem;
         if ($@) {
+            warn "max_memory option requires Sys::Statistics::Linux::MemStats "
+              . "(Linux only); falling back to max_process=2 on this platform\n";
             $cpu_for_mem = 2;
         }
         else {
