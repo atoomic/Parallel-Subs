@@ -54,6 +54,24 @@ subtest 'wait_for_all_optimized runs all jobs' => sub {
     isa_ok $ret, 'Parallel::Subs';
 };
 
+subtest 'wait_for_all_optimized preserves results' => sub {
+    my $p = Parallel::Subs->new( max_process => 2 );
+    for my $i ( 1 .. 6 ) {
+        $p->add( sub { $i * 10 } );
+    }
+    $p->wait_for_all_optimized();
+    is $p->results(), [ 10, 20, 30, 40, 50, 60 ],
+        "results() returns correct values after wait_for_all_optimized";
+};
+
+subtest 'wait_for_all_optimized with single job' => sub {
+    my $p = Parallel::Subs->new();
+    $p->add( sub { 'hello' } );
+    $p->wait_for_all_optimized();
+    is $p->results(), ['hello'],
+        "single job result preserved";
+};
+
 subtest 'max_process limits concurrency' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     for my $i ( 1 .. 4 ) {
