@@ -43,7 +43,7 @@ from the main process by providing a second optional sub to process the results
     # add a second sub
     $p->add(
         sub { print "Hello from kid $$\n" }
-     )
+     );
     $p->add( \&do_something );
 
     # Trigger all the subs to run in parallel using a limited number of process
