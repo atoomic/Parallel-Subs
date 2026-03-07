@@ -159,13 +159,21 @@ sub _init {
     $self->{pfork}->run_on_finish(
         sub {
             my ( $pid, $exit, $id, $exit_signal, $core_dump, $data ) = @_;
-            die "Failed to process on one job, stop here !"
-              if $exit || $exit_signal;
+            if ( $exit || $exit_signal ) {
+                push @{ $self->{failures} }, {
+                    pid         => $pid,
+                    id          => $id,
+                    exit_code   => $exit,
+                    exit_signal => $exit_signal,
+                };
+                return;
+            }
             $self->{result}->{$id} = $data->{result};
         }
     );
     $self->{jobs}      = [];
     $self->{callbacks} = [];
+    $self->{failures}  = [];
 
     return $self;
 }
@@ -277,10 +285,11 @@ sub wait_for_all_optimized {
         my ( $from, $to ) = @_;
 
         return sub {
+            my %results;
             for ( my $i = $from ; $i <= $to ; ++$i ) {
-                $original_jobs[$i]->{code}->();
+                $results{ $original_jobs[$i]->{name} } = $original_jobs[$i]->{code}->();
             }
-            return;
+            return \%results;
         };
     };
 
@@ -297,7 +306,18 @@ sub wait_for_all_optimized {
 
     $self->{jobs} = \@new_jobs;
 
-    return $self->wait_for_all();
+    $self->run();
+
+    # Unpack grouped results back to individual job keys
+    my %unpacked;
+    for my $group_result ( values %{ $self->{result} } ) {
+        if ( ref $group_result eq 'HASH' ) {
+            %unpacked = ( %unpacked, %$group_result );
+        }
+    }
+    $self->{result} = \%unpacked;
+
+    return $self;
 }
 
 =head2 $p->run
@@ -323,6 +343,14 @@ sub run {
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    if ( @{ $self->{failures} } ) {
+        my @msgs = map {
+            sprintf( "job %s (pid %d) exited with code %d, signal %d",
+                $_->{id}, $_->{pid}, $_->{exit_code}, $_->{exit_signal} )
+        } @{ $self->{failures} };
+        die sprintf( "%d job(s) failed:\n  %s\n", scalar @msgs, join( "\n  ", @msgs ) );
+    }
 
     return $self->{result};
 }
