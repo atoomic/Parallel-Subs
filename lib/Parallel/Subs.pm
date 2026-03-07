@@ -159,13 +159,21 @@ sub _init {
     $self->{pfork}->run_on_finish(
         sub {
             my ( $pid, $exit, $id, $exit_signal, $core_dump, $data ) = @_;
-            die "Failed to process on one job, stop here !"
-              if $exit || $exit_signal;
+            if ( $exit || $exit_signal ) {
+                push @{ $self->{failures} }, {
+                    pid         => $pid,
+                    id          => $id,
+                    exit_code   => $exit,
+                    exit_signal => $exit_signal,
+                };
+                return;
+            }
             $self->{result}->{$id} = $data->{result};
         }
     );
     $self->{jobs}      = [];
     $self->{callbacks} = [];
+    $self->{failures}  = [];
 
     return $self;
 }
@@ -323,6 +331,14 @@ sub run {
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    if ( @{ $self->{failures} } ) {
+        my @msgs = map {
+            sprintf( "job %s (pid %d) exited with code %d, signal %d",
+                $_->{id}, $_->{pid}, $_->{exit_code}, $_->{exit_signal} )
+        } @{ $self->{failures} };
+        die sprintf( "%d job(s) failed:\n  %s\n", scalar @msgs, join( "\n  ", @msgs ) );
+    }
 
     return $self->{result};
 }
