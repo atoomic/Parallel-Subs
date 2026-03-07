@@ -63,4 +63,39 @@ subtest 'max_process limits concurrency' => sub {
     is $p->results(), [ 10, 20, 30, 40 ], "results correct with max_process=2";
 };
 
+subtest 'job failure reports job id and exit code' => sub {
+    # Use POSIX::_exit to avoid Test2 END block interference in child forks
+    require POSIX;
+
+    like dies {
+        my $p = Parallel::Subs->new( max_process => 1 );
+        $p->add( sub { POSIX::_exit(42) } );
+        $p->run();
+    },
+        qr/1 job\(s\) failed/,
+        "die message mentions failure count";
+
+    like dies {
+        my $p2 = Parallel::Subs->new( max_process => 1 );
+        $p2->add( sub { POSIX::_exit(7) } );
+        $p2->run();
+    },
+        qr/job 1 .* exited with code 7/,
+        "die message includes job id and exit code";
+};
+
+subtest 'multiple job failures collected and reported together' => sub {
+    require POSIX;
+
+    like dies {
+        my $p = Parallel::Subs->new( max_process => 1 );
+        $p->add( sub { POSIX::_exit(1) } );
+        $p->add( sub { POSIX::_exit(2) } );
+        $p->add( sub { return 42 } );
+        $p->run();
+    },
+        qr/2 job\(s\) failed/,
+        "reports correct number of failures";
+};
+
 done_testing;
