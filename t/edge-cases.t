@@ -22,13 +22,16 @@ subtest 'run with no jobs returns undef' => sub {
     ok !defined $result, "run() with no jobs returns undef";
 };
 
-subtest 'add with non-CODE returns undef' => sub {
+subtest 'add with non-CODE croaks' => sub {
     my $p = Parallel::Subs->new();
-    my $ret = $p->add("not a coderef");
-    ok !defined $ret, "add() with string returns undef";
 
-    $ret = $p->add(undef);
-    ok !defined $ret, "add() with undef returns undef";
+    like dies { $p->add("not a coderef") },
+        qr/add\(\) requires a CODE reference/,
+        "add() with string croaks";
+
+    like dies { $p->add(undef) },
+        qr/add\(\) requires a CODE reference/,
+        "add() with undef croaks";
 
     is $p->total_jobs(), 0, "no jobs were actually added";
 };
