@@ -10,21 +10,11 @@ use Sys::Info;
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
 
 =head1 NAME
+
 Parallel::Subs - simple object interface to launch subs in parallel
 and process their return values.
 
-=head1 DESCRIPTION
-
-Parallel::Subs is a simple object interface used to launch test in parallel.
-It uses Parallel::ForkManager to launch subs in parallel and get the results.
-
-=head1 Usage
-
-You could also use the result returned by the function run in custom child process
-from the main process by providing a second optional sub to process the results
-
-
-=head2 The basics
+=head1 SYNOPSIS
 
     use Parallel::Subs;
 
@@ -67,7 +57,7 @@ which can make your code easier to read.
      ->add( sub{ print "Hello from kid $$\n" } )
      ->wait_for_all();
      # or ->wait_for_all_optimized(); # beta - group jobs and run one single fork per/cpu
-    
+
     print qq[This is done.\n];
 
 =head2 Run subs in parallel and use their return values
@@ -79,7 +69,7 @@ which can make your code easier to read.
     sub work_to_do {
         my ( $a, $b ) = @_;
         return sub {
-            note "Running in parallel from process $$";
+            print "Running in parallel from process $$\n";
             # need some time to execute...
             # return 42;
             # return { value => 42 };
@@ -117,6 +107,14 @@ which can make your code easier to read.
 
     $p->wait_for_all();
 
+=head1 DESCRIPTION
+
+Parallel::Subs is a simple object interface used to launch tasks in parallel.
+It uses L<Parallel::ForkManager> to run subroutines in child processes and
+collect their return values.
+
+You can also provide a second optional sub (callback) to process the result
+returned by each child process from the main process.
 
 =head1 METHODS
 
@@ -124,20 +122,25 @@ which can make your code easier to read.
 
 Create a new Parallel::Subs object.
 
-By default it will use the number of cores you have as a maximum limit of parallelized job,
-but you can control this value with two options :
+By default it will use the number of CPU cores as the maximum number of parallel jobs.
+You can control this with the following options:
 
-- max_process : set the maximum process to this value
+=over 4
 
-- max_process_per_cpu : set the maximum process per cpu, this value
-will be multiplied by the number of cpu ( core ) avaiable on your server
+=item * C<max_process> -set the maximum number of parallel processes directly
 
-- max_memory : in MB per job. Will use the minimum between #cpu and total memory available / max_memory
+=item * C<max_process_per_cpu> -multiplied by the number of CPU cores
 
-    my $p = Parallel::Subs->new()
-        or Parallel::Subs->new( max_process => N )
-        or Parallel::Subs->new( max_process_per_cpu => P )
-        or Parallel::Subs->new( max_memory => M );
+=item * C<max_memory> -in MB per job. Uses the minimum between the number of CPUs
+and total available memory / max_memory (Linux only, requires
+L<Sys::Statistics::Linux::MemStats>)
+
+=back
+
+    my $p = Parallel::Subs->new();
+    my $p = Parallel::Subs->new( max_process => 4 );
+    my $p = Parallel::Subs->new( max_process_per_cpu => 2 );
+    my $p = Parallel::Subs->new( max_memory => 512 );
 
 =cut
 
@@ -237,7 +240,7 @@ sub add {
 
 =head2 $p->total_jobs
 
-    return the total number of jobs
+Returns the total number of jobs added so far.
 
 =cut
 
@@ -249,10 +252,10 @@ sub total_jobs {
 
 =head2 $p->wait_for_all_optimized
 
-    similar to wait_for_all but the goal is to reduce the number of fork
-    by grouping tasks together to be run by the same process
+Similar to C<wait_for_all> but reduces the number of forks by grouping
+tasks together to be run by the same process.
 
-    For now this does not support callback. This is still in beta testing.
+B<Beta>: does not support callbacks. Callbacks will be cleared with a warning.
 
 =cut
 
@@ -304,8 +307,9 @@ sub wait_for_all_optimized {
 
 =head2 $p->run
 
-will run and wait for all jobs added
-you do not need to use this method except if you prefer to add jobs yourself and manipulate the results
+Runs all added jobs in parallel and waits for them to complete.
+Returns the raw results hashref (keyed by job name).
+You typically don't need this method directly -use C<wait_for_all> instead.
 
 =cut
 
@@ -331,8 +335,9 @@ sub run {
 
 =head2 $p->wait_for_all
 
-    no process will be executed until you call this function
-    which will then trigger parallel jobs and wait for all of them to finish    
+Triggers all added jobs to run in parallel and waits for them to finish.
+Callbacks (if any) are invoked in order after all jobs complete.
+Returns C<$self> for chaining.
 
 =cut
 
@@ -357,7 +362,7 @@ sub wait_for_all {
 
 =head2 $p->results
 
-    get an array of results, in the same order of jobs
+Returns an array reference of results, in the same order as jobs were added.
 
 =cut
 
