@@ -291,6 +291,8 @@ sub wait_for_all_optimized {
 
     my ( $from, $to ) = ( 0, 0 );
     foreach my $id ( 1 .. $cpu ) {
+        last if $from >= scalar @original_jobs;
+
         $to = $from + $jobs_per_cpu - 1;
         $to = scalar(@original_jobs) - 1 if $to >= scalar(@original_jobs);
 
