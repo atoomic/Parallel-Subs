@@ -54,6 +54,19 @@ subtest 'wait_for_all_optimized runs all jobs' => sub {
     isa_ok $ret, 'Parallel::Subs';
 };
 
+subtest 'wait_for_all_optimized with fewer jobs than CPUs' => sub {
+    # Force many CPUs but add only 2 jobs — should not fork unnecessary processes
+    my $p = Parallel::Subs->new( max_process => 8 );
+    $p->add( sub { 'a' } );
+    $p->add( sub { 'b' } );
+    my $ret = $p->wait_for_all_optimized();
+    isa_ok $ret, 'Parallel::Subs';
+
+    # Should only have 2 result entries, not 8
+    my $results = $ret->results();
+    is scalar @$results, 2, "only 2 results, not 8 (no empty fork results)";
+};
+
 subtest 'max_process limits concurrency' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     for my $i ( 1 .. 4 ) {
