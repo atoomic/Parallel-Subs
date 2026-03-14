@@ -54,6 +54,19 @@ subtest 'wait_for_all_optimized runs all jobs' => sub {
     isa_ok $ret, 'Parallel::Subs';
 };
 
+subtest 'wait_for_all_optimized with fewer jobs than CPUs' => sub {
+    # Force many CPUs but add only 2 jobs — should not fork unnecessary processes
+    my $p = Parallel::Subs->new( max_process => 8 );
+    $p->add( sub { 'a' } );
+    $p->add( sub { 'b' } );
+    my $ret = $p->wait_for_all_optimized();
+    isa_ok $ret, 'Parallel::Subs';
+
+    # Should only have 2 result entries, not 8
+    my $results = $ret->results();
+    is scalar @$results, 2, "only 2 results, not 8 (no empty fork results)";
+};
+
 subtest 'wait_for_all_optimized preserves results' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     for my $i ( 1 .. 6 ) {
@@ -79,6 +92,25 @@ subtest 'max_process limits concurrency' => sub {
     }
     $p->run();
     is $p->results(), [ 10, 20, 30, 40 ], "results correct with max_process=2";
+};
+
+subtest 'max_memory warns on non-Linux platforms' => sub {
+    my $has_memstats = eval { require Sys::Statistics::Linux::MemStats; 1 };
+
+    if ($has_memstats) {
+        pass "Sys::Statistics::Linux::MemStats available — skipping warning test";
+        return;
+    }
+
+    my @warnings;
+    local $SIG{__WARN__} = sub { push @warnings, $_[0] };
+
+    my $p = Parallel::Subs->new( max_memory => 128 );
+    isa_ok $p, 'Parallel::Subs';
+
+    is scalar @warnings, 1, "exactly one warning emitted";
+    like $warnings[0], qr/max_memory.*falling back/,
+        "warning mentions max_memory fallback";
 };
 
 subtest 'job failure reports job id and exit code' => sub {
