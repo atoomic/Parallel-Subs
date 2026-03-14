@@ -95,4 +95,61 @@ subtest 'max_memory warns on non-Linux platforms' => sub {
         "warning mentions max_memory fallback";
 };
 
+subtest 'constructor rejects negative max_process' => sub {
+    like dies { Parallel::Subs->new( max_process => -1 ) },
+        qr/max_process must be a positive number/,
+        "max_process => -1 croaks";
+
+    like dies { Parallel::Subs->new( max_process => 0 ) },
+        qr/max_process must be a positive number/,
+        "max_process => 0 croaks";
+};
+
+subtest 'constructor rejects negative max_process_per_cpu' => sub {
+    like dies { Parallel::Subs->new( max_process_per_cpu => -2 ) },
+        qr/max_process_per_cpu must be a positive number/,
+        "max_process_per_cpu => -2 croaks";
+
+    like dies { Parallel::Subs->new( max_process_per_cpu => 0 ) },
+        qr/max_process_per_cpu must be a positive number/,
+        "max_process_per_cpu => 0 croaks";
+};
+
+subtest 'constructor rejects negative max_memory' => sub {
+    like dies { Parallel::Subs->new( max_memory => -100 ) },
+        qr/max_memory must be a positive number/,
+        "max_memory => -100 croaks";
+
+    like dies { Parallel::Subs->new( max_memory => 0 ) },
+        qr/max_memory must be a positive number/,
+        "max_memory => 0 croaks";
+};
+
+subtest 'wait_for_all_optimized warns about callbacks' => sub {
+    my $p = Parallel::Subs->new( max_process => 2 );
+    $p->add( sub { 1 }, sub { } );
+    $p->add( sub { 2 }, sub { } );
+
+    my @warnings;
+    local $SIG{__WARN__} = sub { push @warnings, $_[0] };
+
+    $p->wait_for_all_optimized();
+
+    ok scalar @warnings >= 1, "at least one warning emitted";
+    like $warnings[0], qr/Callback not supported/,
+        "warning mentions callback not supported";
+};
+
+subtest 'wait_for_all with no jobs returns self' => sub {
+    my $p = Parallel::Subs->new();
+    my $ret = $p->wait_for_all();
+    is $ret, exact_ref($p), "wait_for_all with no jobs returns \$self";
+};
+
+subtest 'wait_for_all_optimized with no jobs returns self' => sub {
+    my $p = Parallel::Subs->new();
+    my $ret = $p->wait_for_all_optimized();
+    is $ret, exact_ref($p), "wait_for_all_optimized with no jobs returns \$self";
+};
+
 done_testing;

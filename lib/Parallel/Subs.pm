@@ -176,6 +176,11 @@ sub _init {
 sub _pfork {
     my ( $self, %opts ) = @_;
 
+    for my $opt (qw(max_process max_process_per_cpu max_memory)) {
+        croak "$opt must be a positive number"
+          if defined $opts{$opt} && $opts{$opt} <= 0;
+    }
+
     my $cpu;
     if ( defined $opts{max_process} ) {
         $cpu = $opts{max_process};
