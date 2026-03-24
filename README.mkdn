@@ -176,3 +176,7 @@ This software is copyright (c) 2018 by Nicolas R.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
+
+# AI POLICY
+
+This project uses AI tools to assist development. Humans review and approve every change before it is merged. See [AI\_POLICY.md](AI_POLICY.md) for details.
