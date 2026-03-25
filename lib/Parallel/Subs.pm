@@ -107,6 +107,23 @@ which can make your code easier to read.
 
     $p->wait_for_all();
 
+=head2 Named jobs
+
+You can give jobs a name and retrieve their results by name instead of position.
+
+    use Parallel::Subs;
+
+    my $p = Parallel::Subs->new();
+    $p->add( 'users',  sub { fetch_users()  } );
+    $p->add( 'orders', sub { fetch_orders() } );
+    $p->wait_for_all();
+
+    my $users  = $p->result('users');
+    my $orders = $p->result('orders');
+
+Named and unnamed jobs can be mixed freely. C<results()> always returns
+all results in insertion order regardless of naming.
+
 =head1 DESCRIPTION
 
 Parallel::Subs is a simple object interface used to launch tasks in parallel.
@@ -169,6 +186,7 @@ sub _init {
     );
     $self->{jobs}      = [];
     $self->{callbacks} = [];
+    $self->{named}     = {};
 
     return $self;
 }
@@ -220,25 +238,47 @@ sub _pfork {
     return $self;
 }
 
-=head2 $p->add($code, [$callback])
+=head2 $p->add([$name], $code, [$callback])
 
-You can add some sub to be run in parallel.
+Add a sub to be run in parallel. An optional name (string) can be provided
+as the first argument to identify this job for later retrieval via C<result()>.
 
     $p->add( sub { 1 } );
     $p->add( sub { return { 1..6 } }, sub { my $result = shift; ... } );
+    $p->add( 'fetch_users', sub { ... } );
+    $p->add( 'compute', sub { heavy_calc() }, sub { process(shift) } );
 
 =cut
 
 sub add {
-    my ( $self, $code, $callback ) = @_;
+    my $self = shift;
+
+    # Optional name as first argument (non-reference string)
+    my $user_name;
+    if ( @_ >= 2 && defined $_[0] && !ref $_[0] ) {
+        $user_name = shift;
+    }
+
+    my ( $code, $callback ) = @_;
 
     croak "add() requires a CODE reference as first argument"
       unless $code && ref $code eq 'CODE';
+
+    if ( defined $user_name ) {
+        croak "duplicate job name '$user_name'"
+          if exists $self->{named}{$user_name};
+    }
+
+    my $position = scalar( @{ $self->{jobs} } ) + 1;
     push(
         @{ $self->{jobs} },
-        { name => ( scalar( @{ $self->{jobs} } ) + 1 ), code => $code }
+        { name => $position, code => $code }
     );
     push( @{ $self->{callbacks} }, $callback );
+
+    if ( defined $user_name ) {
+        $self->{named}{$user_name} = $position;
+    }
 
     return $self;
 }
@@ -380,6 +420,30 @@ sub results {
       map  { $self->{result}{$_} }
       sort { int($a) <=> int($b) } keys %{ $self->{result} };
     return \@sorted;
+}
+
+=head2 $p->result($name)
+
+Returns the result for a named job. The name must have been provided
+when the job was added via C<add()>.
+
+    $p->add( 'fetch_users', sub { get_users() } );
+    $p->wait_for_all();
+    my $users = $p->result('fetch_users');
+
+Croaks if the name is unknown.
+
+=cut
+
+sub result {
+    my ( $self, $name ) = @_;
+
+    croak "result() requires a job name" unless defined $name;
+
+    my $position = $self->{named}{$name};
+    croak "unknown job name '$name'" unless defined $position;
+
+    return $self->{result}{$position};
 }
 
 1;
