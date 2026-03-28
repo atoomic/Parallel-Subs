@@ -152,4 +152,57 @@ subtest 'wait_for_all_optimized with no jobs returns self' => sub {
     is $ret, exact_ref($p), "wait_for_all_optimized with no jobs returns \$self";
 };
 
+subtest 'job failure reports job id and exit code' => sub {
+    require POSIX;
+
+    like dies {
+        my $p = Parallel::Subs->new( max_process => 1 );
+        $p->add( sub { POSIX::_exit(42) } );
+        $p->run();
+    },
+        qr/1 job\(s\) failed/,
+        "die message mentions failure count";
+
+    like dies {
+        my $p = Parallel::Subs->new( max_process => 1 );
+        $p->add( sub { POSIX::_exit(7) } );
+        $p->run();
+    },
+        qr/job 1 .* exited with code 7/,
+        "die message includes job id and exit code";
+};
+
+subtest 'multiple job failures collected and reported together' => sub {
+    require POSIX;
+
+    like dies {
+        my $p = Parallel::Subs->new( max_process => 1 );
+        $p->add( sub { POSIX::_exit(1) } );
+        $p->add( sub { POSIX::_exit(2) } );
+        $p->add( sub { 'ok' } );
+        $p->run();
+    },
+        qr/2 job\(s\) failed/,
+        "all failures collected, not just the first";
+};
+
+subtest 'wait_for_all_optimized preserves results' => sub {
+    my $p = Parallel::Subs->new( max_process => 2 );
+    for my $i ( 1 .. 6 ) {
+        $p->add( sub { $i * 10 } );
+    }
+    $p->wait_for_all_optimized();
+    is $p->results(), [ 10, 20, 30, 40, 50, 60 ],
+        "results preserved and ordered after optimized run";
+};
+
+subtest 'wait_for_all_optimized results with fewer jobs than CPUs' => sub {
+    my $p = Parallel::Subs->new( max_process => 8 );
+    $p->add( sub { 'alpha' } );
+    $p->add( sub { 'beta' } );
+    $p->wait_for_all_optimized();
+    is $p->results(), [ 'alpha', 'beta' ],
+        "results correct when jobs < CPUs";
+};
+
 done_testing;
