@@ -135,7 +135,13 @@ You can control this with the following options:
 and total available memory / max_memory (Linux only, requires
 L<Sys::Statistics::Linux::MemStats>)
 
+=item * C<waitpid_blocking_sleep> -if true, use blocking waitpid (default is
+non-blocking). See L<Parallel::ForkManager/set_waitpid_blocking_sleep>.
+
 =back
+
+Note: C<max_process> and C<max_process_per_cpu> are mutually exclusive.
+Passing both will throw an error.
 
     my $p = Parallel::Subs->new();
     my $p = Parallel::Subs->new( max_process => 4 );
@@ -175,6 +181,16 @@ sub _init {
 
 sub _pfork {
     my ( $self, %opts ) = @_;
+
+    my %valid = map { $_ => 1 }
+      qw(max_process max_process_per_cpu max_memory waitpid_blocking_sleep);
+    for my $key ( keys %opts ) {
+        croak "Unknown option '$key' passed to new()"
+          unless $valid{$key};
+    }
+
+    croak "max_process and max_process_per_cpu are mutually exclusive"
+      if defined $opts{max_process} && defined $opts{max_process_per_cpu};
 
     for my $opt (qw(max_process max_process_per_cpu max_memory)) {
         croak "$opt must be a positive number"
