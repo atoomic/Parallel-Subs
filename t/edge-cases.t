@@ -152,4 +152,17 @@ subtest 'wait_for_all_optimized with no jobs returns self' => sub {
     is $ret, exact_ref($p), "wait_for_all_optimized with no jobs returns \$self";
 };
 
+subtest 'cpu count detection returns positive integer' => sub {
+    my $count = Parallel::Subs::_cpu_count();
+    ok defined $count, "_cpu_count returns a defined value";
+    ok $count >= 1, "_cpu_count returns at least 1 (got $count)";
+    like $count, qr/^\d+$/, "_cpu_count returns an integer";
+};
+
+subtest 'default constructor detects CPUs without Sys::Info' => sub {
+    my $p = Parallel::Subs->new();
+    isa_ok $p, 'Parallel::Subs';
+    ok $p->{cpu} >= 1, "detected at least 1 CPU (got $p->{cpu})";
+};
+
 done_testing;
