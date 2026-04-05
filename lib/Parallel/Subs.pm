@@ -158,13 +158,24 @@ sub _init {
     my ( $self, %opts ) = @_;
 
     $self->_pfork(%opts);
-    $self->{result} = {};
+    $self->{result}   = {};
+    $self->{failures} = [];
     $self->{pfork}->run_on_finish(
         sub {
             my ( $pid, $exit, $id, $exit_signal, $core_dump, $data ) = @_;
-            die "Failed to process on one job, stop here !"
-              if $exit || $exit_signal;
-            $self->{result}->{$id} = $data->{result};
+            if ( $exit || $exit_signal ) {
+                my $error = ( $data && $data->{error} ) ? $data->{error} : undef;
+                push @{ $self->{failures} }, {
+                    id     => $id,
+                    pid    => $pid,
+                    exit   => $exit,
+                    signal => $exit_signal,
+                    error  => $error,
+                };
+            }
+            else {
+                $self->{result}->{$id} = $data->{result};
+            }
         }
     );
     $self->{jobs}      = [];
@@ -287,10 +298,12 @@ sub wait_for_all_optimized {
         my ( $from, $to ) = @_;
 
         return sub {
+            my %results;
             for ( my $i = $from ; $i <= $to ; ++$i ) {
-                $original_jobs[$i]->{code}->();
+                $results{ $original_jobs[$i]->{name} } =
+                  $original_jobs[$i]->{code}->();
             }
-            return;
+            return \%results;
         };
     };
 
@@ -309,7 +322,17 @@ sub wait_for_all_optimized {
 
     $self->{jobs} = \@new_jobs;
 
-    return $self->wait_for_all();
+    $self->run();
+
+    # Unpack grouped results back to individual job keys
+    my %flat;
+    for my $grouped_result ( values %{ $self->{result} } ) {
+        next unless ref $grouped_result eq 'HASH';
+        %flat = ( %flat, %$grouped_result );
+    }
+    $self->{result} = \%flat;
+
+    return $self;
 }
 
 =head2 $p->run
@@ -324,18 +347,38 @@ sub run {
     my ($self) = @_;
 
     return unless scalar @{ $self->{jobs} };
+    $self->{failures} = [];
+
     my $pfm = $self->{pfork};
     for my $job ( @{ $self->{jobs} } ) {
         $pfm->start( $job->{name} ) and next;
-        my $job_result = $job->{code}();
 
-        # can be used to stop on first error
-        my $job_error = 0;
-        $pfm->finish( $job_error, { result => $job_result } );
+        my $job_result;
+        my $ok = eval {
+            $job_result = $job->{code}->();
+            1;
+        };
+        if ($ok) {
+            $pfm->finish( 0, { result => $job_result } );
+        }
+        else {
+            $pfm->finish( 1, { error => "$@" } );
+        }
     }
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    if ( @{ $self->{failures} } ) {
+        my @msgs;
+        for my $f ( @{ $self->{failures} } ) {
+            my $msg = "job $f->{id} (pid $f->{pid}): exit=$f->{exit}";
+            $msg .= " signal=$f->{signal}" if $f->{signal};
+            $msg .= " error=$f->{error}"   if $f->{error};
+            push @msgs, $msg;
+        }
+        die "Job failures:\n  " . join( "\n  ", @msgs ) . "\n";
+    }
 
     return $self->{result};
 }
