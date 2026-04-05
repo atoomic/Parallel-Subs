@@ -182,8 +182,9 @@ sub _init {
     my ( $self, %opts ) = @_;
 
     $self->_pfork(%opts);
-    $self->{timeout} = $opts{timeout};
-    $self->{result} = {};
+    $self->{timeout}  = $opts{timeout};
+    $self->{result}   = {};
+    $self->{failures} = [];
 
     # Use a weak reference to break the circular reference:
     # $self -> {pfork} -> run_on_finish closure -> $self
@@ -194,14 +195,24 @@ sub _init {
         sub {
             my ( $pid, $exit, $id, $exit_signal, $core_dump, $data ) = @_;
             return unless $weak_self;
-            die "Failed to process on one job, stop here !"
-              if $exit || $exit_signal;
-            $weak_self->{result}->{$id} = $data->{result};
+            if ( $exit || $exit_signal ) {
+                my $error = ( $data && $data->{error} ) ? $data->{error} : undef;
+                push @{ $weak_self->{failures} }, {
+                    id     => $id,
+                    pid    => $pid,
+                    exit   => $exit,
+                    signal => $exit_signal,
+                    error  => $error,
+                };
+            }
+            else {
+                $weak_self->{result}->{$id} = $data->{result};
 
-            # Fire callback immediately as each job completes
-            my $cb = $weak_self->{callbacks}[ $id - 1 ];
-            if ( $cb && ref $cb eq 'CODE' ) {
-                $cb->( $data->{result} );
+                # Fire callback immediately as each job completes
+                my $cb = $weak_self->{callbacks}[ $id - 1 ];
+                if ( $cb && ref $cb eq 'CODE' ) {
+                    $cb->( $data->{result} );
+                }
             }
         }
     );
@@ -402,6 +413,8 @@ sub run {
     my ($self) = @_;
 
     return unless scalar @{ $self->{jobs} };
+    $self->{failures} = [];
+
     my $pfm = $self->{pfork};
     for my $job ( @{ $self->{jobs} } ) {
         $pfm->start( $job->{name} ) and next;
@@ -413,16 +426,33 @@ sub run {
             alarm($timeout);
         }
 
-        my $job_result = $job->{code}();
+        my $job_result;
+        my $ok = eval {
+            $job_result = $job->{code}->();
+            1;
+        };
         alarm(0) if $self->{timeout};
-
-        # can be used to stop on first error
-        my $job_error = 0;
-        $pfm->finish( $job_error, { result => $job_result } );
+        if ($ok) {
+            $pfm->finish( 0, { result => $job_result } );
+        }
+        else {
+            $pfm->finish( 1, { error => "$@" } );
+        }
     }
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    if ( @{ $self->{failures} } ) {
+        my @msgs;
+        for my $f ( @{ $self->{failures} } ) {
+            my $msg = "job $f->{id} (pid $f->{pid}): exit=$f->{exit}";
+            $msg .= " signal=$f->{signal}" if $f->{signal};
+            $msg .= " error=$f->{error}"   if $f->{error};
+            push @msgs, $msg;
+        }
+        die "Job failures:\n  " . join( "\n  ", @msgs ) . "\n";
+    }
 
     return $self->{result};
 }
