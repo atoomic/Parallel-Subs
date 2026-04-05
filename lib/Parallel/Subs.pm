@@ -5,7 +5,6 @@ use warnings;
 
 use Carp qw(croak);
 use Parallel::ForkManager;
-use Sys::Info;
 
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
 
@@ -173,6 +172,26 @@ sub _init {
     return $self;
 }
 
+sub _cpu_count {
+    # Linux: count processor entries in /proc/cpuinfo
+    if ( -r '/proc/cpuinfo' ) {
+        if ( open my $fh, '<', '/proc/cpuinfo' ) {
+            my $count = grep { /^processor\s*:/i } <$fh>;
+            close $fh;
+            return $count if $count > 0;
+        }
+    }
+
+    # macOS / BSD: sysctl hw.ncpu
+    my $out = `sysctl -n hw.ncpu 2>/dev/null`;
+    if ( defined $out ) {
+        chomp $out;
+        return $out + 0 if $out =~ /^\d+$/ && $out > 0;
+    }
+
+    return 1;
+}
+
 sub _pfork {
     my ( $self, %opts ) = @_;
 
@@ -187,7 +206,7 @@ sub _pfork {
     }
     else {
         my $factor = $opts{max_process_per_cpu} || 1;
-        eval { $cpu = Sys::Info->new()->device('CPU')->count() * $factor; };
+        $cpu = _cpu_count() * $factor;
     }
     if ( defined $opts{max_memory} ) {
         my $free_mem;
