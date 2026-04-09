@@ -125,6 +125,30 @@ subtest 'constructor rejects negative max_memory' => sub {
         "max_memory => 0 croaks";
 };
 
+subtest 'add with non-CODE callback croaks' => sub {
+    my $p = Parallel::Subs->new();
+
+    like dies { $p->add( sub { 1 }, "not a coderef" ) },
+        qr/callback must be a CODE reference/,
+        "string callback croaks";
+
+    like dies { $p->add( sub { 1 }, [1, 2, 3] ) },
+        qr/callback must be a CODE reference/,
+        "arrayref callback croaks";
+
+    like dies { $p->add( sub { 1 }, { a => 1 } ) },
+        qr/callback must be a CODE reference/,
+        "hashref callback croaks";
+
+    is $p->total_jobs(), 0, "no jobs were added after bad callbacks";
+};
+
+subtest 'add with undef callback is allowed' => sub {
+    my $p = Parallel::Subs->new();
+    ok $p->add( sub { 1 }, undef ), "undef callback accepted";
+    is $p->total_jobs(), 1, "job was added";
+};
+
 subtest 'wait_for_all_optimized warns about callbacks' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     $p->add( sub { 1 }, sub { } );

@@ -234,6 +234,8 @@ sub add {
 
     croak "add() requires a CODE reference as first argument"
       unless $code && ref $code eq 'CODE';
+    croak "callback must be a CODE reference"
+      if defined $callback && ref $callback ne 'CODE';
     push(
         @{ $self->{jobs} },
         { name => ( scalar( @{ $self->{jobs} } ) + 1 ), code => $code }
