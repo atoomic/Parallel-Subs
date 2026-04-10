@@ -6,7 +6,6 @@ use warnings;
 use Carp qw(croak);
 use Parallel::ForkManager;
 use Scalar::Util qw(weaken);
-use Sys::Info;
 
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
 
@@ -124,7 +123,8 @@ returned by each child process from the main process.
 
 Create a new Parallel::Subs object.
 
-By default it will use the number of CPU cores as the maximum number of parallel jobs.
+By default it will use the number of CPU cores as the maximum number of parallel jobs
+(requires L<Sys::Info>; falls back to 1 process if not installed).
 You can control this with the following options:
 
 =over 4
@@ -202,7 +202,10 @@ sub _pfork {
     }
     else {
         my $factor = $opts{max_process_per_cpu} || 1;
-        eval { $cpu = Sys::Info->new()->device('CPU')->count() * $factor; };
+        eval {
+            require Sys::Info;
+            $cpu = Sys::Info->new()->device('CPU')->count() * $factor;
+        };
     }
     if ( defined $opts{max_memory} ) {
         my $free_mem;
