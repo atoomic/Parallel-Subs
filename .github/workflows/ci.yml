@@ -53,3 +53,20 @@ jobs:
             cd build
           fi
           prove -lr t/
+
+  macos:
+    runs-on: macos-latest
+    name: "macOS / System Perl"
+
+    env:
+      PERL_USE_UNSAFE_INC: 0
+      AUTOMATED_TESTING: 1
+
+    steps:
+      - uses: actions/checkout@v6
+      - run: perl -V
+      - name: Install dependencies
+        run: |
+          cpan -T Parallel::ForkManager Test2::V0
+      - name: Test
+        run: prove -lr t/
