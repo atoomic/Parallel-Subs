@@ -21,7 +21,8 @@ and process their return values.
     my $p = Parallel::Subs->new();
     #    or Parallel::Subs->new( max_process => N )
     #    or Parallel::Subs->new( max_process_per_cpu => P )
-    #    or Parallel::Subs->new( max_memory => M );
+    #    or Parallel::Subs->new( max_memory => M )
+    #    or Parallel::Subs->new( timeout => T );
 
     # add a first sub which will be launched by its own kid
     $p->add(  
@@ -135,12 +136,17 @@ You can control this with the following options:
 and total available memory / max_memory (Linux only, requires
 L<Sys::Statistics::Linux::MemStats>)
 
+=item * C<timeout> -in seconds. If a child process takes longer than this,
+it is killed via C<SIGALRM>. Applies to each fork individually (in optimized
+mode, the timeout covers the grouped jobs within each fork).
+
 =back
 
     my $p = Parallel::Subs->new();
     my $p = Parallel::Subs->new( max_process => 4 );
     my $p = Parallel::Subs->new( max_process_per_cpu => 2 );
     my $p = Parallel::Subs->new( max_memory => 512 );
+    my $p = Parallel::Subs->new( timeout => 30 );
 
 =cut
 
@@ -158,6 +164,7 @@ sub _init {
     my ( $self, %opts ) = @_;
 
     $self->_pfork(%opts);
+    $self->{timeout} = $opts{timeout};
     $self->{result} = {};
     $self->{pfork}->run_on_finish(
         sub {
@@ -176,7 +183,7 @@ sub _init {
 sub _pfork {
     my ( $self, %opts ) = @_;
 
-    for my $opt (qw(max_process max_process_per_cpu max_memory)) {
+    for my $opt (qw(max_process max_process_per_cpu max_memory timeout)) {
         croak "$opt must be a positive number"
           if defined $opts{$opt} && $opts{$opt} <= 0;
     }
@@ -327,7 +334,16 @@ sub run {
     my $pfm = $self->{pfork};
     for my $job ( @{ $self->{jobs} } ) {
         $pfm->start( $job->{name} ) and next;
+
+        if ( my $timeout = $self->{timeout} ) {
+            $SIG{ALRM} = sub {
+                die "Job '$job->{name}' timed out after ${timeout}s\n";
+            };
+            alarm($timeout);
+        }
+
         my $job_result = $job->{code}();
+        alarm(0) if $self->{timeout};
 
         # can be used to stop on first error
         my $job_error = 0;
