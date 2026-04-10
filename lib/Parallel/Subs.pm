@@ -5,6 +5,7 @@ use warnings;
 
 use Carp qw(croak);
 use Parallel::ForkManager;
+use Scalar::Util qw(weaken);
 use Sys::Info;
 
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
@@ -159,12 +160,19 @@ sub _init {
 
     $self->_pfork(%opts);
     $self->{result} = {};
+
+    # Use a weak reference to break the circular reference:
+    # $self -> {pfork} -> run_on_finish closure -> $self
+    my $weak_self = $self;
+    weaken($weak_self);
+
     $self->{pfork}->run_on_finish(
         sub {
             my ( $pid, $exit, $id, $exit_signal, $core_dump, $data ) = @_;
+            return unless $weak_self;
             die "Failed to process on one job, stop here !"
               if $exit || $exit_signal;
-            $self->{result}->{$id} = $data->{result};
+            $weak_self->{result}->{$id} = $data->{result};
         }
     );
     $self->{jobs}      = [];
