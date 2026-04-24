@@ -304,10 +304,12 @@ sub wait_for_all_optimized {
         my ( $from, $to ) = @_;
 
         return sub {
+            my %results;
             for ( my $i = $from ; $i <= $to ; ++$i ) {
-                $original_jobs[$i]->{code}->();
+                $results{ $original_jobs[$i]->{name} } =
+                  $original_jobs[$i]->{code}->();
             }
-            return;
+            return \%results;
         };
     };
 
@@ -326,7 +328,17 @@ sub wait_for_all_optimized {
 
     $self->{jobs} = \@new_jobs;
 
-    return $self->wait_for_all();
+    $self->run();
+
+    # Unpack grouped results back into individual job results
+    my %unpacked;
+    for my $group_result ( values %{ $self->{result} } ) {
+        next unless ref $group_result eq 'HASH';
+        %unpacked = ( %unpacked, %$group_result );
+    }
+    $self->{result} = \%unpacked;
+
+    return $self;
 }
 
 =head2 $p->run
