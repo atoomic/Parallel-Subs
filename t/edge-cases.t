@@ -45,13 +45,15 @@ subtest 'results ordering matches job order' => sub {
     is $p->results(), [ 1 .. 10 ], "results preserve insertion order";
 };
 
-subtest 'wait_for_all_optimized runs all jobs' => sub {
+subtest 'wait_for_all_optimized runs all jobs and preserves results' => sub {
     my $p = Parallel::Subs->new();
     for my $i ( 1 .. 8 ) {
         $p->add( sub { $i } );
     }
     my $ret = $p->wait_for_all_optimized();
     isa_ok $ret, 'Parallel::Subs';
+    is $ret->results(), [ 1 .. 8 ],
+        "optimized mode preserves all return values in order";
 };
 
 subtest 'wait_for_all_optimized with fewer jobs than CPUs' => sub {
@@ -62,9 +64,9 @@ subtest 'wait_for_all_optimized with fewer jobs than CPUs' => sub {
     my $ret = $p->wait_for_all_optimized();
     isa_ok $ret, 'Parallel::Subs';
 
-    # Should only have 2 result entries, not 8
     my $results = $ret->results();
     is scalar @$results, 2, "only 2 results, not 8 (no empty fork results)";
+    is $results, [ 'a', 'b' ], "results preserve values when jobs < CPUs";
 };
 
 subtest 'max_process limits concurrency' => sub {
@@ -147,6 +149,22 @@ subtest 'add with undef callback is allowed' => sub {
     my $p = Parallel::Subs->new();
     ok $p->add( sub { 1 }, undef ), "undef callback accepted";
     is $p->total_jobs(), 1, "job was added";
+};
+
+subtest 'wait_for_all_optimized preserves complex return types' => sub {
+    my $p = Parallel::Subs->new( max_process => 2 );
+    $p->add( sub { { key => 'value' } } );
+    $p->add( sub { [ 1, 2, 3 ] } );
+    $p->add( sub { 'scalar' } );
+    $p->add( sub { 42 } );
+
+    $p->wait_for_all_optimized();
+    my $results = $p->results();
+
+    is $results->[0], { key => 'value' }, "hashref result preserved";
+    is $results->[1], [ 1, 2, 3 ],        "arrayref result preserved";
+    is $results->[2], 'scalar',            "string result preserved";
+    is $results->[3], 42,                  "numeric result preserved";
 };
 
 subtest 'wait_for_all_optimized warns about callbacks' => sub {
