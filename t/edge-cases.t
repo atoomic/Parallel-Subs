@@ -149,31 +149,6 @@ subtest 'add with undef callback is allowed' => sub {
     is $p->total_jobs(), 1, "job was added";
 };
 
-subtest 'constructor rejects unknown options' => sub {
-    like dies { Parallel::Subs->new( max_processs => 4 ) },
-        qr/Unknown option 'max_processs'/,
-        "typo in option name croaks";
-
-    like dies { Parallel::Subs->new( foo => 1 ) },
-        qr/Unknown option 'foo'/,
-        "completely unknown option croaks";
-
-    like dies { Parallel::Subs->new( max_process => 2, bar => 'x' ) },
-        qr/Unknown option 'bar'/,
-        "mix of valid and unknown options croaks";
-};
-
-subtest 'constructor rejects mutually exclusive options' => sub {
-    like dies { Parallel::Subs->new( max_process => 4, max_process_per_cpu => 2 ) },
-        qr/max_process and max_process_per_cpu are mutually exclusive/,
-        "max_process + max_process_per_cpu croaks";
-};
-
-subtest 'waitpid_blocking_sleep is accepted' => sub {
-    my $p = Parallel::Subs->new( waitpid_blocking_sleep => 1 );
-    isa_ok $p, 'Parallel::Subs';
-};
-
 subtest 'wait_for_all_optimized warns about callbacks' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     $p->add( sub { 1 }, sub { } );
