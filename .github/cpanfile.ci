@@ -31,7 +31,7 @@ if ($] >= 5.020) {
 
 # runtime deps
 requires "Parallel::ForkManager"              => 0;
-requires "Sys::Info"                          => 0;
+recommends "Sys::Info"                          => 0;
 
 # test deps
 requires "Test2::V0"                 => 0;

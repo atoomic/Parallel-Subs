@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 use Parallel::ForkManager;
 use Scalar::Util qw(weaken);
-use Sys::Info;
+
 
 # ABSTRACT: Simple way to run subs in parallel and process their return value in perl
 
@@ -202,7 +202,10 @@ sub _pfork {
     }
     else {
         my $factor = $opts{max_process_per_cpu} || 1;
-        eval { $cpu = Sys::Info->new()->device('CPU')->count() * $factor; };
+        eval {
+            require Sys::Info;
+            $cpu = Sys::Info->new()->device('CPU')->count() * $factor;
+        };
     }
     if ( defined $opts{max_memory} ) {
         my $free_mem;
