@@ -13,7 +13,8 @@ subtest 'sparse callbacks - only some jobs have callbacks' => sub {
     $p->add( sub { 'third' },  sub { push @called, shift } );
     $p->wait_for_all();
 
-    is \@called, [ 'first', 'third' ],
+    is scalar @called, 2, "exactly two callbacks fired";
+    is [ sort @called ], [ 'first', 'third' ],
         "only defined callbacks are invoked with correct values";
 };
 
@@ -91,8 +92,45 @@ subtest 'many jobs with callbacks' => sub {
     }
     $p->wait_for_all();
 
-    is \@collected, [ 1 .. $n ],
-        "$n jobs with callbacks all produce correct results in order";
+    is scalar @collected, $n, "$n callbacks fired";
+    is [ sort { $a <=> $b } @collected ], [ 1 .. $n ],
+        "all $n jobs produced correct results via callbacks";
+};
+
+subtest 'callbacks fire as jobs complete (real-time)' => sub {
+    # With max_process=1, jobs run sequentially.
+    # Verify callbacks fire during run(), not after all jobs finish.
+    my @log;
+    my $p = Parallel::Subs->new( max_process => 1 );
+    $p->add(
+        sub { 'a' },
+        sub { push @log, "cb:" . shift }
+    );
+    $p->add(
+        sub { 'b' },
+        sub { push @log, "cb:" . shift }
+    );
+    $p->wait_for_all();
+
+    is \@log, [ 'cb:a', 'cb:b' ],
+        "callbacks fired in completion order during execution";
+    is $p->results(), [ 'a', 'b' ],
+        "results are still available after callbacks";
+};
+
+subtest 'callback sum pattern works with real-time invocation' => sub {
+    # Classic sum pattern from the SYNOPSIS
+    my $sum = 0;
+    my $p   = Parallel::Subs->new( max_process => 2 );
+    for my $i ( 1 .. 10 ) {
+        $p->add(
+            sub { $i },
+            sub { $sum += shift }
+        );
+    }
+    $p->wait_for_all();
+
+    is $sum, 55, "sum of 1..10 via callbacks equals 55";
 };
 
 done_testing;
