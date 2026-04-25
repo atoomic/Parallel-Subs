@@ -180,6 +180,12 @@ sub _init {
             die "Failed to process on one job, stop here !"
               if $exit || $exit_signal;
             $weak_self->{result}->{$id} = $data->{result};
+
+            # Fire callback immediately as each job completes
+            my $cb = $weak_self->{callbacks}[ $id - 1 ];
+            if ( $cb && ref $cb eq 'CODE' ) {
+                $cb->( $data->{result} );
+            }
         }
     );
     $self->{jobs}      = [];
@@ -369,7 +375,9 @@ sub run {
 =head2 $p->wait_for_all
 
 Triggers all added jobs to run in parallel and waits for them to finish.
-Callbacks (if any) are invoked in order after all jobs complete.
+Callbacks (if any) are invoked as each job completes, not after all jobs
+finish. This means callbacks fire in completion order, which may differ
+from the order jobs were added.
 Returns C<$self> for chaining.
 
 =cut
@@ -379,16 +387,8 @@ sub wait_for_all {
 
     return $self unless $self->total_jobs;
 
+    # Callbacks are fired in run_on_finish as each job completes
     $self->run();
-
-    my $results = $self->results();
-
-    my $c = 0;
-    foreach my $callback ( @{ $self->{callbacks} } ) {
-        my $res = $results->[ $c++ ];
-        next unless $callback && ref $callback eq 'CODE';
-        $callback->($res);
-    }
 
     return $self;
 }
