@@ -1,10 +1,12 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## What is Parallel::Subs
 
 A simple Perl module that wraps `Parallel::ForkManager` to run subroutines in
 parallel and collect their return values. Supports callbacks, method chaining,
-and memory-aware process limits.
+named jobs, memory-aware process limits, and per-job timeouts.
 
 Single module: `lib/Parallel/Subs.pm`. No submodules.
 
@@ -27,8 +29,9 @@ podchecker lib/Parallel/Subs.pm
 
 ## Architecture
 
-- **`lib/Parallel/Subs.pm`** — entire module (single file)
-- **`t/`** — test suite using Test2::V0
+- **`lib/Parallel/Subs.pm`** — entire module (single file, ~520 lines)
+- **`t/`** — test suite using Test2::V0 (basic, callbacks, chaining, edge-cases,
+  error-handling, memory-leak, named-jobs, parallel-tests, sample-sum, timeout)
 - **`dist.ini`** — Dist::Zilla build config
 - **`cpanfile`** — runtime and test dependencies
 - **`.github/cpanfile.ci`** — CI-specific deps (includes dzil plugins)
@@ -64,15 +67,25 @@ podchecker lib/Parallel/Subs.pm
 - Results keyed by job name in `$self->{result}`, sorted numerically by `results()`
 - `run_on_finish` callback handles result collection from child processes
 - Constructor options: `max_process`, `max_process_per_cpu`, `max_memory`,
-  `waitpid_blocking_sleep`
+  `timeout`, `waitpid_blocking_sleep`
 - `max_process` and `max_process_per_cpu` are mutually exclusive in intent
   (though not enforced on master yet)
 
 ## Key design decisions
 
 - `add()` croaks on non-CODE input — this is deliberate, not a bug
+- `add()` accepts an optional leading string as a job name; results can then
+  be retrieved by name via `$p->result($name)`
+- Callbacks fire as each job completes (completion order), not after all jobs
+  finish — order may differ from insertion order
 - `wait_for_all_optimized()` groups jobs per CPU for fewer forks — beta feature,
   does not support callbacks (warns and clears them)
-- Error handling in `run_on_finish` currently dies on job failure — this kills
-  the parent mid-wait (known issue, fix in progress)
+- `timeout` kills a child via `SIGALRM`; in optimized mode it covers the
+  grouped jobs within each fork
 - `Sys::Info` fallback: if CPU detection fails, defaults to 1 process
+
+## Distribution hygiene
+
+`CLAUDE.md` and the `.claude/` directory are excluded from CPAN releases via
+`dist.ini` (`[GatherDir]` `exclude_filename` / `exclude_match`). Do not add
+agent/IDE config files to the shipped tarball.
