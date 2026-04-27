@@ -223,6 +223,26 @@ sub _init {
     return $self;
 }
 
+sub _detect_cpu_count {
+    # /proc/cpuinfo — Linux
+    if ( -r '/proc/cpuinfo' ) {
+        if ( open my $fh, '<', '/proc/cpuinfo' ) {
+            my $count = 0;
+            while (<$fh>) { $count++ if /^processor\s*:/i }
+            close $fh;
+            return $count if $count;
+        }
+    }
+
+    # sysctl — macOS / BSD
+    my $sysctl = `sysctl -n hw.ncpu 2>/dev/null`;
+    if ( defined $sysctl && $sysctl =~ /^(\d+)/ ) {
+        return $1 if $1;
+    }
+
+    return;
+}
+
 sub _pfork {
     my ( $self, %opts ) = @_;
 
@@ -237,10 +257,8 @@ sub _pfork {
     }
     else {
         my $factor = $opts{max_process_per_cpu} || 1;
-        eval {
-            require Sys::Info;
-            $cpu = Sys::Info->new()->device('CPU')->count() * $factor;
-        };
+        my $detected = _detect_cpu_count();
+        $cpu = ( $detected || 1 ) * $factor;
     }
     if ( defined $opts{max_memory} ) {
         my $free_mem;
