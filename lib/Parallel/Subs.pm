@@ -407,12 +407,18 @@ Runs all added jobs in parallel and waits for them to complete.
 Returns the raw results hashref (keyed by job name).
 You typically don't need this method directly -use C<wait_for_all> instead.
 
+After execution, the job queue is cleared. You can safely call C<add()>
+again and run a new batch without re-executing previous jobs.
+
 =cut
 
 sub run {
     my ($self) = @_;
 
     return unless scalar @{ $self->{jobs} };
+
+    # Reset state for this run (results/named from previous runs are replaced)
+    $self->{result}   = {};
     $self->{failures} = [];
 
     my $pfm = $self->{pfork};
@@ -442,6 +448,10 @@ sub run {
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    # Clear executed jobs so repeated wait_for_all() calls don't re-run them
+    $self->{jobs}      = [];
+    $self->{callbacks} = [];
 
     if ( @{ $self->{failures} } ) {
         my @msgs;
