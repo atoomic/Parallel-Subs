@@ -147,8 +147,10 @@ You can control this with the following options:
 =over 4
 
 =item * C<max_process> -set the maximum number of parallel processes directly
+(mutually exclusive with C<max_process_per_cpu>)
 
 =item * C<max_process_per_cpu> -multiplied by the number of CPU cores
+(mutually exclusive with C<max_process>)
 
 =item * C<max_memory> -in MB per job. Uses the minimum between the number of CPUs
 and total available memory / max_memory (Linux only, requires
@@ -250,6 +252,9 @@ sub _pfork {
         croak "$opt must be a positive number"
           if defined $opts{$opt} && $opts{$opt} <= 0;
     }
+
+    croak "max_process and max_process_per_cpu are mutually exclusive"
+      if defined $opts{max_process} && defined $opts{max_process_per_cpu};
 
     my $cpu;
     if ( defined $opts{max_process} ) {
