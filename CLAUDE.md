@@ -38,9 +38,12 @@ podchecker lib/Parallel/Subs.pm
 
 ## Dependencies
 
-- **Runtime**: `Parallel::ForkManager`, `Sys::Info` (CPU detection)
+- **Runtime**: `Parallel::ForkManager`
 - **Optional**: `Sys::Statistics::Linux::MemStats` (Linux-only memory detection)
 - **Test**: `Test2::V0`
+
+CPU count is detected via `/proc/cpuinfo` (Linux) or `sysctl -n hw.ncpu`
+(macOS/BSD), with a fallback to 1 process. No external dependency needed.
 
 ## Testing
 
@@ -50,7 +53,7 @@ podchecker lib/Parallel/Subs.pm
   Use `POSIX::_exit()` in child subs or `eval {}` patterns when testing failures
   under PFM.
 - Tests run on Linux CI (Perl 5.14+). No Windows support.
-- `Sys::Info` may produce warnings on macOS — harmless, falls back.
+- CPU detection uses `/proc/cpuinfo` or `sysctl` — no external dependency.
 
 ## CI
 
@@ -82,7 +85,7 @@ podchecker lib/Parallel/Subs.pm
   does not support callbacks (warns and clears them)
 - `timeout` kills a child via `SIGALRM`; in optimized mode it covers the
   grouped jobs within each fork
-- `Sys::Info` fallback: if CPU detection fails, defaults to 1 process
+- CPU detection fallback: if both `/proc/cpuinfo` and `sysctl` fail, defaults to 1 process
 
 ## Distribution hygiene
 
