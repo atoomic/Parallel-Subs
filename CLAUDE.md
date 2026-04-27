@@ -71,8 +71,7 @@ CPU count is detected via `/proc/cpuinfo` (Linux) or `sysctl -n hw.ncpu`
 - `run_on_finish` callback handles result collection from child processes
 - Constructor options: `max_process`, `max_process_per_cpu`, `max_memory`,
   `timeout`, `waitpid_blocking_sleep`
-- `max_process` and `max_process_per_cpu` are mutually exclusive in intent
-  (though not enforced on master yet)
+- `max_process` and `max_process_per_cpu` are mutually exclusive (enforced with croak)
 
 ## Key design decisions
 
