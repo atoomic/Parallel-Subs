@@ -133,4 +133,37 @@ subtest 'callback sum pattern works with real-time invocation' => sub {
     is $sum, 55, "sum of 1..10 via callbacks equals 55";
 };
 
+subtest 'callback exception does not crash parent' => sub {
+    my @collected;
+    my $p = Parallel::Subs->new( max_process => 1 );
+
+    # Job 1: callback dies
+    $p->add(
+        sub { 'first' },
+        sub { die "callback boom" }
+    );
+
+    # Job 2: normal callback
+    $p->add(
+        sub { 'second' },
+        sub { push @collected, shift }
+    );
+
+    # Job 3: no callback
+    $p->add( sub { 'third' } );
+
+    my @warnings;
+    local $SIG{__WARN__} = sub { push @warnings, $_[0] };
+
+    $p->wait_for_all();
+
+    is scalar @collected, 1, "surviving callback still fired";
+    is $collected[0], 'second', "surviving callback got correct value";
+    is $p->results(), [ 'first', 'second', 'third' ],
+        "all job results collected despite callback failure";
+    is scalar @warnings, 1, "exactly one warning emitted";
+    like $warnings[0], qr/Callback for job 1 died.*callback boom/,
+        "warning identifies failed job and error message";
+};
+
 done_testing;
