@@ -194,4 +194,18 @@ subtest 'wait_for_all_optimized with no jobs returns self' => sub {
     is $ret, exact_ref($p), "wait_for_all_optimized with no jobs returns \$self";
 };
 
+subtest 'constructor rejects unknown options' => sub {
+    like dies { Parallel::Subs->new( max_processs => 4 ) },
+        qr/unknown option.*max_processs/,
+        "typo in option name is caught";
+
+    like dies { Parallel::Subs->new( max_process => 2, foo => 1 ) },
+        qr/unknown option.*foo/,
+        "arbitrary unknown option croaks";
+
+    like dies { Parallel::Subs->new( bar => 1, baz => 2 ) },
+        qr/unknown option.*bar.*baz/,
+        "multiple unknown options listed in error";
+};
+
 done_testing;

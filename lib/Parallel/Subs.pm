@@ -178,8 +178,19 @@ sub new {
     return $self;
 }
 
+my %VALID_OPTIONS;
+BEGIN {
+    %VALID_OPTIONS = map { $_ => 1 }
+      qw(max_process max_process_per_cpu max_memory timeout waitpid_blocking_sleep);
+}
+
 sub _init {
     my ( $self, %opts ) = @_;
+
+    my @unknown = sort grep { !$VALID_OPTIONS{$_} } keys %opts;
+    if (@unknown) {
+        croak "unknown option(s): " . join( ', ', @unknown );
+    }
 
     $self->_pfork(%opts);
     $self->{timeout}  = $opts{timeout};
