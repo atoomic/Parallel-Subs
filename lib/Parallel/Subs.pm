@@ -211,7 +211,10 @@ sub _init {
                 # Fire callback immediately as each job completes
                 my $cb = $weak_self->{callbacks}[ $id - 1 ];
                 if ( $cb && ref $cb eq 'CODE' ) {
-                    $cb->( $data->{result} );
+                    my $ok = eval { $cb->( $data->{result} ); 1 };
+                    unless ($ok) {
+                        warn "Callback for job $id died: $@";
+                    }
                 }
             }
         }
