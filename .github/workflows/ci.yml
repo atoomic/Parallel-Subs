@@ -51,10 +51,13 @@ jobs:
         if: ${{ contains('5.14 5.16 5.18 5.20 5.22', matrix.perl-version) }}
         run: |
           cpanm -n Parallel::ForkManager Test2::V0
-      - name: Build and Test
+      - name: Build (dzil)
+        if: ${{ ! contains('5.14 5.16 5.18 5.20 5.22', matrix.perl-version) }}
         run: |
           if [ -x "$(command -v dzil)" ]; then
             dzil build --in build
-            cd build
           fi
+      - name: Test
+        run: |
+          if [ -d build ]; then cd build; fi
           prove -lr t/
