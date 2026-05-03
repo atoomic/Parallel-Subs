@@ -182,6 +182,25 @@ subtest 'wait_for_all_optimized warns about callbacks' => sub {
         "warning mentions callback not supported";
 };
 
+subtest 'constructor rejects unknown options' => sub {
+    like dies { Parallel::Subs->new( max_processs => 4 ) },
+        qr/unknown option 'max_processs'/,
+        "typo in option name croaks";
+
+    like dies { Parallel::Subs->new( foobar => 1 ) },
+        qr/unknown option 'foobar'/,
+        "completely unknown option croaks";
+
+    like dies { Parallel::Subs->new( max_process => 4, bogus => 1 ) },
+        qr/unknown option 'bogus'/,
+        "unknown option mixed with valid ones croaks";
+};
+
+subtest 'waitpid_blocking_sleep is a valid option' => sub {
+    my $p = Parallel::Subs->new( waitpid_blocking_sleep => 1 );
+    ok $p, "constructor accepts waitpid_blocking_sleep";
+};
+
 subtest 'wait_for_all with no jobs returns self' => sub {
     my $p = Parallel::Subs->new();
     my $ret = $p->wait_for_all();

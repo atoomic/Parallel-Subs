@@ -158,6 +158,10 @@ L<Sys::Statistics::Linux::MemStats>)
 it is killed via C<SIGALRM>. Applies to each fork individually (in optimized
 mode, the timeout covers the grouped jobs within each fork).
 
+=item * C<waitpid_blocking_sleep> -if true, uses blocking sleep during
+C<waitpid()> calls (default: false). The non-blocking default reduces CPU
+usage but increases polling frequency.
+
 =back
 
     my $p = Parallel::Subs->new();
@@ -225,6 +229,12 @@ sub _init {
 
 sub _pfork {
     my ( $self, %opts ) = @_;
+
+    my %valid = map { $_ => 1 }
+      qw(max_process max_process_per_cpu max_memory timeout waitpid_blocking_sleep);
+    for my $key ( keys %opts ) {
+        croak "unknown option '$key'" unless $valid{$key};
+    }
 
     for my $opt (qw(max_process max_process_per_cpu max_memory timeout)) {
         croak "$opt must be a positive number"
