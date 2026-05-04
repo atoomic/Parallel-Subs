@@ -123,6 +123,38 @@ subtest 'mixed named and unnamed jobs' => sub {
     is $p->results(), [qw(anon1 named anon2)], "all results in order";
 };
 
+subtest 'named jobs across batches do not leak' => sub {
+    my $p = Parallel::Subs->new( max_process => 1 );
+
+    # Batch 1: named job 'alpha'
+    $p->add( 'alpha', sub { "batch1" } );
+    $p->wait_for_all();
+    is $p->result('alpha'), "batch1", "batch 1 named result";
+
+    # Batch 2: different named job 'beta'
+    $p->add( 'beta', sub { "batch2" } );
+    $p->wait_for_all();
+    is $p->result('beta'), "batch2", "batch 2 named result";
+
+    # 'alpha' from batch 1 should no longer be accessible
+    like dies { $p->result('alpha') },
+        qr/unknown job name/,
+        "stale name from previous batch croaks";
+};
+
+subtest 'same name reusable across batches' => sub {
+    my $p = Parallel::Subs->new( max_process => 1 );
+
+    $p->add( 'worker', sub { "first" } );
+    $p->wait_for_all();
+    is $p->result('worker'), "first", "first batch result";
+
+    # Reuse the same name in a new batch — should not croak
+    $p->add( 'worker', sub { "second" } );
+    $p->wait_for_all();
+    is $p->result('worker'), "second", "second batch with same name works";
+};
+
 subtest 'results before run returns empty' => sub {
     my $p = Parallel::Subs->new( max_process => 2 );
     $p->add( sub { 42 } );

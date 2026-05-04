@@ -314,6 +314,12 @@ as the first argument to identify this job for later retrieval via C<result()>.
 sub add {
     my $self = shift;
 
+    # Clear stale named mappings when starting a new batch
+    # (jobs are cleared after run(), so empty jobs = new batch)
+    if ( !@{ $self->{jobs} } ) {
+        $self->{named} = {};
+    }
+
     # Optional name as first argument (non-reference string)
     my $user_name;
     if ( @_ >= 2 && defined $_[0] && !ref $_[0] ) {
