@@ -147,8 +147,10 @@ You can control this with the following options:
 =over 4
 
 =item * C<max_process> -set the maximum number of parallel processes directly
+(mutually exclusive with C<max_process_per_cpu>)
 
 =item * C<max_process_per_cpu> -multiplied by the number of CPU cores
+(mutually exclusive with C<max_process>)
 
 =item * C<max_memory> -in MB per job. Uses the minimum between the number of CPUs
 and total available memory / max_memory (Linux only, requires
@@ -211,7 +213,10 @@ sub _init {
                 # Fire callback immediately as each job completes
                 my $cb = $weak_self->{callbacks}[ $id - 1 ];
                 if ( $cb && ref $cb eq 'CODE' ) {
-                    $cb->( $data->{result} );
+                    my $ok = eval { $cb->( $data->{result} ); 1 };
+                    unless ($ok) {
+                        warn "Callback for job $id died: $@";
+                    }
                 }
             }
         }
@@ -223,6 +228,26 @@ sub _init {
     return $self;
 }
 
+sub _detect_cpu_count {
+    # /proc/cpuinfo — Linux
+    if ( -r '/proc/cpuinfo' ) {
+        if ( open my $fh, '<', '/proc/cpuinfo' ) {
+            my $count = 0;
+            while (<$fh>) { $count++ if /^processor\s*:/i }
+            close $fh;
+            return $count if $count;
+        }
+    }
+
+    # sysctl — macOS / BSD
+    my $sysctl = `sysctl -n hw.ncpu 2>/dev/null`;
+    if ( defined $sysctl && $sysctl =~ /^(\d+)/ ) {
+        return $1 if $1;
+    }
+
+    return;
+}
+
 sub _pfork {
     my ( $self, %opts ) = @_;
 
@@ -231,16 +256,17 @@ sub _pfork {
           if defined $opts{$opt} && $opts{$opt} <= 0;
     }
 
+    croak "max_process and max_process_per_cpu are mutually exclusive"
+      if defined $opts{max_process} && defined $opts{max_process_per_cpu};
+
     my $cpu;
     if ( defined $opts{max_process} ) {
         $cpu = $opts{max_process};
     }
     else {
         my $factor = $opts{max_process_per_cpu} || 1;
-        eval {
-            require Sys::Info;
-            $cpu = Sys::Info->new()->device('CPU')->count() * $factor;
-        };
+        my $detected = _detect_cpu_count();
+        $cpu = ( $detected || 1 ) * $factor;
     }
     if ( defined $opts{max_memory} ) {
         my $free_mem;
@@ -287,6 +313,12 @@ as the first argument to identify this job for later retrieval via C<result()>.
 
 sub add {
     my $self = shift;
+
+    # Clear stale named mappings when starting a new batch
+    # (jobs are cleared after run(), so empty jobs = new batch)
+    if ( !@{ $self->{jobs} } ) {
+        $self->{named} = {};
+    }
 
     # Optional name as first argument (non-reference string)
     my $user_name;
@@ -407,12 +439,18 @@ Runs all added jobs in parallel and waits for them to complete.
 Returns the raw results hashref (keyed by job name).
 You typically don't need this method directly -use C<wait_for_all> instead.
 
+After execution, the job queue is cleared. You can safely call C<add()>
+again and run a new batch without re-executing previous jobs.
+
 =cut
 
 sub run {
     my ($self) = @_;
 
     return unless scalar @{ $self->{jobs} };
+
+    # Reset state for this run (results/named from previous runs are replaced)
+    $self->{result}   = {};
     $self->{failures} = [];
 
     my $pfm = $self->{pfork};
@@ -442,6 +480,10 @@ sub run {
 
     # wait for all jobs
     $pfm->wait_all_children;
+
+    # Clear executed jobs so repeated wait_for_all() calls don't re-run them
+    $self->{jobs}      = [];
+    $self->{callbacks} = [];
 
     if ( @{ $self->{failures} } ) {
         my @msgs;

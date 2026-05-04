@@ -127,6 +127,22 @@ subtest 'constructor rejects negative max_memory' => sub {
         "max_memory => 0 croaks";
 };
 
+subtest 'max_process and max_process_per_cpu are mutually exclusive' => sub {
+    like dies { Parallel::Subs->new( max_process => 4, max_process_per_cpu => 2 ) },
+        qr/max_process and max_process_per_cpu are mutually exclusive/,
+        "passing both options croaks";
+};
+
+subtest 'constructor rejects negative timeout' => sub {
+    like dies { Parallel::Subs->new( timeout => -5 ) },
+        qr/timeout must be a positive number/,
+        "timeout => -5 croaks";
+
+    like dies { Parallel::Subs->new( timeout => 0 ) },
+        qr/timeout must be a positive number/,
+        "timeout => 0 croaks";
+};
+
 subtest 'add with non-CODE callback croaks' => sub {
     my $p = Parallel::Subs->new();
 
