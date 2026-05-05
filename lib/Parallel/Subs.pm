@@ -23,7 +23,8 @@ and process their return values.
     #    or Parallel::Subs->new( max_process => N )
     #    or Parallel::Subs->new( max_process_per_cpu => P )
     #    or Parallel::Subs->new( max_memory => M )
-    #    or Parallel::Subs->new( timeout => T );
+    #    or Parallel::Subs->new( timeout => T )
+    #    or Parallel::Subs->new( on_failure => 'continue' );
 
     # add a first sub which will be launched by its own kid
     $p->add(  
@@ -158,6 +159,11 @@ L<Sys::Statistics::Linux::MemStats>)
 it is killed via C<SIGALRM>. Applies to each fork individually (in optimized
 mode, the timeout covers the grouped jobs within each fork).
 
+=item * C<on_failure> -either C<'die'> (default) or C<'continue'>. When set
+to C<'continue'>, job failures are collected but do not cause C<run()> to die.
+Successful results are still available via C<results()>, and failures can be
+inspected with C<failures()>.
+
 =back
 
     my $p = Parallel::Subs->new();
@@ -229,6 +235,12 @@ sub _pfork {
     for my $opt (qw(max_process max_process_per_cpu max_memory timeout)) {
         croak "$opt must be a positive number"
           if defined $opts{$opt} && $opts{$opt} <= 0;
+    }
+
+    if ( defined $opts{on_failure} ) {
+        croak "on_failure must be 'die' or 'continue'"
+          unless $opts{on_failure} =~ /\A(?:die|continue)\z/;
+        $self->{on_failure} = $opts{on_failure};
     }
 
     my $cpu;
@@ -443,7 +455,7 @@ sub run {
     # wait for all jobs
     $pfm->wait_all_children;
 
-    if ( @{ $self->{failures} } ) {
+    if ( @{ $self->{failures} } && ( $self->{on_failure} || 'die' ) eq 'die' ) {
         my @msgs;
         for my $f ( @{ $self->{failures} } ) {
             my $msg = "job $f->{id} (pid $f->{pid}): exit=$f->{exit}";
@@ -515,6 +527,31 @@ sub result {
     croak "unknown job name '$name'" unless defined $position;
 
     return $self->{result}{$position};
+}
+
+=head2 $p->failures
+
+Returns an array reference of failure records from the last run.
+Each record is a hashref with keys: C<id>, C<pid>, C<exit>, C<signal>,
+and optionally C<error>.
+
+This is most useful with C<< on_failure => 'continue' >> to inspect
+which jobs failed while still retrieving results from successful ones.
+
+    my $p = Parallel::Subs->new( on_failure => 'continue' );
+    $p->add( sub { die "oops" } );
+    $p->add( sub { 42 } );
+    $p->wait_for_all();
+
+    my $results  = $p->results();   # [undef, 42]
+    my $failures = $p->failures();  # [{id => 1, ...}]
+
+=cut
+
+sub failures {
+    my ($self) = @_;
+
+    return $self->{failures};
 }
 
 1;
