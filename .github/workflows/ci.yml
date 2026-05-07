@@ -41,15 +41,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: perl -V
-      - name: Install dependencies
+      - name: Install dependencies (cpm)
+        if: ${{ ! contains('5.14 5.16 5.18 5.20 5.22', matrix.perl-version) }}
         uses: perl-actions/install-with-cpm@v1
         with:
           sudo: false
           cpanfile: ".github/cpanfile.ci"
-      - name: Build and Test
+      - name: Install dependencies (cpanm fallback for older Perls)
+        if: ${{ contains('5.14 5.16 5.18 5.20 5.22', matrix.perl-version) }}
+        run: |
+          cpanm -n Parallel::ForkManager Test2::V0
+      - name: Build (dzil)
+        if: ${{ ! contains('5.14 5.16 5.18 5.20 5.22', matrix.perl-version) }}
         run: |
           if [ -x "$(command -v dzil)" ]; then
             dzil build --in build
-            cd build
           fi
+      - name: Test
+        run: |
+          if [ -d build ]; then cd build; fi
           prove -lr t/
