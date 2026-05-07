@@ -158,6 +158,11 @@ L<Sys::Statistics::Linux::MemStats>)
 it is killed via C<SIGALRM>. Applies to each fork individually (in optimized
 mode, the timeout covers the grouped jobs within each fork).
 
+=item * C<waitpid_blocking_sleep> -if set to a true value, uses blocking
+C<waitpid()> calls (Parallel::ForkManager's default of 1-second sleep
+between checks). By default this is disabled (set to 0) for lower latency
+when reaping child processes.
+
 =back
 
     my $p = Parallel::Subs->new();
@@ -516,6 +521,47 @@ sub result {
 
     return $self->{result}{$position};
 }
+
+=head1 CAVEATS
+
+=over 4
+
+=item * B<Fork, not threads.> Each job runs in a separate forked process.
+Global state (database handles, file descriptors, network sockets) is
+I<copied> into child processes, not shared. Open a new connection inside
+each job sub if needed.
+
+=item * B<Return value serialization.> Results are passed from child to parent
+via L<Storable>. Objects with XS internals, closures, and file handles
+cannot be serialized. Return plain data structures (scalars, arrayrefs,
+hashrefs) from your job subs.
+
+=item * B<Callbacks run in the parent.> The optional callback passed to
+C<add()> fires in the parent process as each child completes (inside
+L<Parallel::ForkManager>'s C<run_on_finish> handler). Callbacks execute
+in I<completion order>, which may differ from insertion order.
+
+=item * B<C<wait_for_all_optimized> limitations.> This method groups multiple
+jobs into a single fork per CPU. Callbacks are not supported (cleared with
+a warning). If any job in a group dies, remaining jobs in that group are
+skipped. The C<timeout> option covers the entire group, not individual jobs.
+
+=item * B<Test harness interaction.> Calling C<exit()> in a child process
+triggers Perl's C<END> blocks, which can interfere with test frameworks
+like L<Test2>. Use C<POSIX::_exit()> in test subs that need to exit early,
+or wrap them in C<eval {}> blocks.
+
+=back
+
+=head1 SEE ALSO
+
+L<Parallel::ForkManager> - the underlying fork manager used by this module.
+
+L<MCE> - many-core engine for parallel processing (thread and fork based).
+
+L<Parallel::Prefork> - simple prefork server framework.
+
+=cut
 
 1;
 
